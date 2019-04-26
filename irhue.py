@@ -1,5 +1,21 @@
 #!python3
 
+#	#	#	#	#	#	#	#	#	#	#	#	#	#
+#  __  .______       __    __   __    __   _______ 	#
+# |  | |   _  \     |  |  |  | |  |  |  | |   ____|	#
+# |  | |  |_)  |    |  |__|  | |  |  |  | |  |__   	#
+# |  | |      /     |   __   | |  |  |  | |   __|  	#
+# |  | |  |\  \----.|  |  |  | |  `--'  | |  |____ 	#
+# |__| | _| `._____||__|  |__|  \______/  |_______|	#
+#													#
+#	#	#	#	#	#	#	#	#	#	#	#	#	#
+
+'''
+Welcome to irHUE, a program to connect iRacing to a Phillips Hue System
+
+Author: Daniel Knight
+'''
+
 import irsdk, time, itertools, sys, socket, configparser
 from phue import Bridge
 
@@ -40,7 +56,7 @@ def check_iracing():
         state.ir_connected = False
         # don't forget to reset all your in State variables
         state.last_car_setup_tick = -1
-        # we are shut down ir library (clear all internal variables)
+        # we shut down ir library (clear all internal variables)
         ir.shutdown()
 
         print('irsdk disconnected')
@@ -68,31 +84,33 @@ def main_loop(blink, dim):
 	flag = int(str(ir['SessionFlags']), 16)
 	sys.stdout.write(str(flag))
 	sys.stdout.flush()
-	sys.stdout.write("\b\b\b\b\b\b\b\b\b\b\b")
+	sys.stdout.write("\r")
 	
 	if not flag == prev_flag:
 		if flag & (irsdk_green or irsdk_greenHeld):
 			set_color(25500, 200)
+			
 		elif flag & irsdk_white:
 			set_color(11111, 0)
+
 		elif flag & (irsdk_yellow or irsdk_yellowWaving or irsdk_caution or irsdk_cautionWaving):
 			set_color(11200, 200)
 			if blink == 1:
-				caution_loop()
+				blink_loop()
+
 		else:
 			if dim == 1:
 				lights_off()
 	
-		
-def caution_loop():
+	prev_flag = flag
+	
+def blink_loop():
 	
 		for l in lights:
 			l.brightness = 254
-			#time.sleep(3/4)
 		
 		for l in lights:
 			l.brightness = 0
-			#time.sleep(3/4)
 	
 
 if __name__ == '__main__':
@@ -141,10 +159,10 @@ if __name__ == '__main__':
 				sys.stdout.write("Waiting for iRacing ")
 				sys.stdout.write(next(spinner))
 				sys.stdout.flush()
-				sys.stdout.write('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b')
+				sys.stdout.write("\r")
 			# sleep for 1 second
 			# maximum you can use is 1/60
-			# cause iracing update data with 60 fps
+			# cause iracing updates data with 60 fps
 			time.sleep(sleep_time)
 	except KeyboardInterrupt:
 	# press ctrl+c to exit
