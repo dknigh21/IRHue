@@ -62,7 +62,7 @@ def check_iracing():
         print('irsdk disconnected')
     elif not state.ir_connected and ir.startup() and ir.is_initialized and ir.is_connected:
         state.ir_connected = True
-        caution_loop()
+        blink_loop()
         print('irsdk connected')
 
 		
