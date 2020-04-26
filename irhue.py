@@ -128,7 +128,7 @@ if __name__ == '__main__':
 	while True:
 	
 		if len(config['DEFAULT']['BridgeIP']) == 0:
-			ip = input("No default IP specified!\nEnter Bridge IP address: ")
+			ip = input("No default IP specified!\n\nIf this is a first connection, press the blue button\non top of the Hue Bridge during the connection process.\n\nEnter Bridge IP address: ")
 		else:
 			ip = config['DEFAULT']['BridgeIP']
 
