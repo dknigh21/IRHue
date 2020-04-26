@@ -16,7 +16,7 @@ Welcome to irHUE, a program to connect iRacing to a Phillips Hue System
 Author: Daniel Knight
 '''
 
-import irsdk, time, itertools, sys, socket, configparser
+import irsdk, time, itertools, sys, socket, configparser, phue
 from phue import Bridge
 
 sys.tracebacklimit = -1
