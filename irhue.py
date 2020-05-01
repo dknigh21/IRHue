@@ -25,6 +25,7 @@ import configparser
 import phue
 import math
 import threading
+import urllib
 
 # RGB colors that fit into HUE Gamut
 yellow_safe = [0.4119, 0.5157]
@@ -57,8 +58,8 @@ startSet = 0x40000000
 startGo = 0x80000000
 
 class State:
-	ir_connected = False;
-
+	ir_connected = False
+	ir_last_flag = 0
 
 def is_inside_gamut(x, y):
 
@@ -159,7 +160,13 @@ def connect_to_iracing():
 			sys.stdout.write(next(spinner))
 			sys.stdout.flush()
 			sys.stdout.write("\r")
-	
+
+	sys.stdout.write("iRacing Connected!")
+	sys.stdout.flush()
+	sys.write("\r")
+
+
+
 	""" OLD CODE
     if state.ir_connected and not (ir.is_initialized and ir.is_connected):
         state.ir_connected = False
@@ -173,27 +180,6 @@ def connect_to_iracing():
         state.ir_connected = True
         print('irsdk connected')
 	"""
-
-def main():
-
-	print("\nWelcome to irHUE: A small Python application for controlling Phillips Hue lights via iRacing.\nPress Ctrl-C at any time to exit the program\n")
-	
-	#Check if a default IP address has been specified in settings.ini
-	if not default_ip:
-		ip = input("No default IP specified!\n\nIf this is a first connection, press the blue button\non top of the Hue Bridge during the connection process.\n\nEnter Bridge IP address: ")
-	
-	while True:
-		try:
-			b = phue.Bridge(ip)
-			b.connect()
-			all_lights = b.lights
-			print("Bridge found! {} lights connected.".format(len(all_lights)))
-			break
-		except (phue.PhueRequestTimeout):
-			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
-			
-	iRacingConnectionThread = threading.Thread(target=check_iracing)
-	iRacingConnectionThread.start()
 	
 if __name__ == '__main__':
 	
@@ -206,7 +192,57 @@ if __name__ == '__main__':
 	dim_lights_after_green = config['DEFAULT']['DimLightsAfterGreen']
 	ip = config['DEFAULT']['BridgeIP']
 	
-	main()
+	print("\nWelcome to irHUE: A small Python application for controlling Phillips Hue lights via iRacing.\nPress Ctrl-C at any time to exit the program\n")
+	
+	#Check if a default IP address has been specified in settings.ini
+	if not ip:
+		ip = input("No default IP specified!\n\nIf this is a first connection, press the blue button\non top of the Hue Bridge during the connection process.\n\nEnter Bridge IP address: ")
+	
+	while True:
+		try:
+			b = phue.Bridge(ip)
+			b.connect()
+			all_lights = b.lights
+			print("Bridge found! {} lights connected.".format(len(all_lights)))
+			break
+		except (phue.PhueRequestTimeout):
+			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
+
+	# iRacingConnectionThread = threading.Thread(target=check_iracing)
+	# iRacingConnectionThread.start()
+
+	while not ir.is_connected:
+		sys.stdout.write("Waiting for iRacing ")
+		sys.stdout.write(next(spinner))
+		sys.stdout.flush()
+		sys.stdout.write("\r")
+		time.sleep(0.1)
+
+	state.is_connected = True
+
+	sys.stdout.write("iRacing Connected!")
+	sys.stdout.flush()
+	sys.write("\r")
+
+	# MAIN RACING LOOP
+
+	while True:
+
+		current_flag = hex(ir['SessionFlags'])
+
+		if not state.ir_last_flag == current_flag:
+
+			if flag & startGo:
+				print("GREENFLAG")
+			elif flag & cautionWaving:
+				print("Caution Waving")
+			elif flag & caution:
+				print("Held Caution")
+			elif flag & startHidden:
+				print("Continuous green")
+
+			state.ir_last_flag = current_flag
+			
 	
 	""" START OLD CODE
 	prev_flag = 0
