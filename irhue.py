@@ -26,13 +26,18 @@ import phue
 import math
 import threading
 import urllib
+import logging
 
 # RGB colors that fit into HUE Gamut
-yellow_safe = [0.4119, 0.5157]
+yellow_safe = [0.4934, 0.4571]
 green_safe = [0.2075, 0.6549]
+white_safe = [0.3, 0.3]
+red_safe = [0.6818, 0.3071]
 
 sys.tracebacklimit = -1
 spinner = itertools.cycle(['-', '/', '|', '\\'])
+
+all_lights = None
 
 # Flag Codes
 checkered = 0x00000001
@@ -57,10 +62,63 @@ startReady = 0x20000000
 startSet = 0x40000000
 startGo = 0x80000000
 
-class State:
-	ir_connected = False
-	ir_last_flag = 0
+# class State(object):
+		
+	# def __init__(self):
+		# print ('Processing current state:', str(self))
 
+	# def update(self):
+		# """
+		# Handle Events
+		# """
+		# pass
+		
+	# def __repr__(self):
+		# """
+		# Leverages the __str__ method to describe the State
+		# """
+		# return self.__str__()
+	
+	# def __str__(self):
+		# """
+		# Returns the name of the State.
+		# """
+		# return self.__class__.__name__
+		
+# class Green(State):
+	
+	# def __init__(self, flashing):
+		# self.flashing = flashing
+		# self.color = green_safe
+	
+		
+	# def update(self):
+		# if self.flashing:
+			# flash_loop()
+		# return self
+
+		
+# class StateManager(object):
+	# """
+	# Simple state manager for flag states
+	# """
+	
+	# current_flag = 0
+	
+	# def __init__(self, dim_lights):
+		# """ Initialize Components """
+		# self.state = Green(flashing = False)
+		# self.dim_lights = dim_lights
+		
+	# def update(self):
+		
+		# self.state.update()
+		
+class State():
+	flashing = False
+	current_flag = 0
+	last_flag = 0
+	
 def is_inside_gamut(x, y):
 
 	x1 = 0.675
@@ -100,96 +158,63 @@ def rgb_to_xy(rgb):
 		
 def set_color(xy):
 
-	for l in lights:
+	for l in all_lights:
 		l.xy = xy
 
-		
-def lights_off():
-	for l in lights:
-		l.brightness = 1
-		
-def main_loop(blink, dim):
+def lights_set_brightness(bri):
+	for l in all_lights:
+		l.brightness = bri
+
 	
-	prev_flag = 0
-	flag = hex(ir['SessionFlags'])
-	flag = int(flag, 16)
-	print(hex(ir['SessionFlags']))
-	sys.stdout.write(hex(flag))
-	sys.stdout.flush()
-	sys.stdout.write("\r")
-	
-
-	if not flag == prev_flag:
-		if flag & (irsdk_green or irsdk_greenHeld):
-			print("Green")
+def flash_loop():
+	while True:
+		if state.flashing:
+			for l in all_lights:
+				l.brightness = 254
+				
+			time.sleep(1)
 			
-		elif flag & irsdk_white:
-			print("White")
+			for l in all_lights:
+				l.brightness = 0
 
-		elif flag & irsdk_cautionWaving:
-			#set_color(yellow_safe)
-			print("Yellow Waving")
-			if blink == 1:
-				blink_loop()
-
-		elif flag & irsdk_caution:
-			print("Yellow")
-			#set_color(yellow_safe)
-			
-		elif flag & irsdk_oneLapToGreen:
-			print("One to Go")
+def pedal_loop():
+	while True:
+		throttle_val = 254 * float(ir['ThrottleRaw'])
+		brake_val = 254 * float(ir['BrakeRaw'])
+		print(throttle_val)
+		print(brake_val)
+		if throttle_val > brake_val:
+			set_color(green_safe)
 		else:
-			if dim == 1:
-				print("DIM")
-				#lights_off()
-
-	prev_flag = flag
-	
-def blink_loop():
-	
-		for l in lights:
-			l.brightness = 254
+			set_color(red_safe)
 		
-		for l in lights:
-			l.brightness = 0
+		for l in all_lights:
+			l.brightness = int(max(throttle_val, brake_val))
+		
+			
 
-def connect_to_iracing():
+# def connect_to_iracing():
 
-	while not ir.startup():
-			sys.stdout.write("Waiting for iRacing ")
-			sys.stdout.write(next(spinner))
-			sys.stdout.flush()
-			sys.stdout.write("\r")
+	# while not ir.startup():
+			# sys.stdout.write("Waiting for iRacing ")
+			# sys.stdout.write(next(spinner))
+			# sys.stdout.flush()
+			# sys.stdout.write("\r")
 
-	sys.stdout.write("iRacing Connected!")
-	sys.stdout.flush()
-	sys.write("\r")
-
-
-
-	""" OLD CODE
-    if state.ir_connected and not (ir.is_initialized and ir.is_connected):
-        state.ir_connected = False
-        # don't forget to reset all your in State variables
-        state.last_car_setup_tick = -1
-        # we shut down ir library (clear all internal variables)
-        ir.shutdown()
-
-        print('irsdk disconnected')
-    elif not state.ir_connected and ir.startup() and ir.is_initialized and ir.is_connected:
-        state.ir_connected = True
-        print('irsdk connected')
-	"""
+	# sys.stdout.write("iRacing Connected!")
+	# sys.write("\r")
 	
 if __name__ == '__main__':
-	
+
+	format = "%(asctime)s: %(message)s"
+	logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 	config = configparser.ConfigParser(inline_comment_prefixes = (";",))
 	config.read('settings.ini')
-	
+
 	ir = irsdk.IRSDK(parse_yaml_async = True)
 	state = State()
 	
-	dim_lights_after_green = config['DEFAULT']['DimLightsAfterGreen']
+	dim_lights_after_green = bool(int(config['DEFAULT']['DimLightsAfterGreen']))
 	ip = config['DEFAULT']['BridgeIP']
 	
 	print("\nWelcome to irHUE: A small Python application for controlling Phillips Hue lights via iRacing.\nPress Ctrl-C at any time to exit the program\n")
@@ -208,95 +233,96 @@ if __name__ == '__main__':
 		except (phue.PhueRequestTimeout):
 			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
 
-	# iRacingConnectionThread = threading.Thread(target=check_iracing)
-	# iRacingConnectionThread.start()
-
-	while not ir.is_connected:
+	while not ir.startup():
 		sys.stdout.write("Waiting for iRacing ")
 		sys.stdout.write(next(spinner))
 		sys.stdout.flush()
 		sys.stdout.write("\r")
 		time.sleep(0.1)
 
-	state.is_connected = True
+	for l in all_lights:
+		l.transitiontime = 1.0
+
+	# state.is_connected = True
 
 	sys.stdout.write("iRacing Connected!")
 	sys.stdout.flush()
-	sys.write("\r")
+	sys.stdout.write("\r")
 
 	# MAIN RACING LOOP
-
-	while True:
-
-		current_flag = hex(ir['SessionFlags'])
-
-		if not state.ir_last_flag == current_flag:
-
-			if flag & startGo:
-				print("GREENFLAG")
-			elif flag & cautionWaving:
-				print("Caution Waving")
-			elif flag & caution:
-				print("Held Caution")
-			elif flag & startHidden:
-				print("Continuous green")
-
-			state.ir_last_flag = current_flag
-			
 	
-	""" START OLD CODE
-	prev_flag = 0
-	config = configparser.ConfigParser()
-	config.read('settings.ini')
-	ir = irsdk.IRSDK(parse_yaml_async=True)
-	state = State()
-	sleep_time = 0.1
-	blink = config['DEFAULT']['BlinkCautionLights']
-	dim = config['DEFAULT']['DimLights']
+	logging.info("Main		: before creating thread")
+	FlashLoopThread = threading.Thread(target=flash_loop, daemon=True)
+	PedalLoopThread = threading.Thread(target=pedal_loop, daemon=True)
+	logging.info("Main		: before running thread")
+	FlashLoopThread.start()
+	PedalLoopThread.start()
+	logging.info("Main		: wait for thread to finish")
+
 	
-	print("\nWelcome to irHUE: A small python application for controlling Phillips Hue lights via iRacing.\nPress ctrl-c at any time to exit the program\n")
 	
 	while True:
-	
-		if len(config['DEFAULT']['BridgeIP']) == 0:
-			ip = input("No default IP specified!\n\nIf this is a first connection, press the blue button\non top of the Hue Bridge during the connection process.\n\nEnter Bridge IP address: ")
-		else:
-			ip = config['DEFAULT']['BridgeIP']
 
-		print("Attempting bridge connection...")
-	
 		try:
-			b = Bridge(ip)
-			b.connect()
-			lights = b.lights
-			print("Bridge found! {} lights connected.".format(len(lights)))
-			break
-		except (phue.PhueRequestTimeout):
-			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
-	
-	try:
-	# infinite loop
-		while True:
-		# check if we are connected to iracing
-			# if we are, then process data
-			check_iracing()
-			
-			if state.ir_connected:
+			if not ir.is_connected:
+				break
 				
-				sleep_time = 1
-				main_loop(blink, dim)
+			state.current_flag = int(hex(ir['SessionFlags']), 16)
+			print(hex(state.current_flag))
+			print(state.current_flag)
+			print(state.last_flag)
+
+			if not state.last_flag == state.current_flag:
+
+				if state.current_flag & green:
+					print("GREENFLAG")
+					state.flashing = True
+					#lights_set_brightness(254)
+					set_color(green_safe)
+					
+					
+				elif state.current_flag & oneLapToGreen:
+					print("One to Go")
+					state.flashing = False
+					lights_set_brightness(250)
+					set_color(white_safe)
+					
+					
+					
+				elif state.current_flag & cautionWaving:
+					print("Caution Waving")
+					state.flashing = True
+					set_color(yellow_safe)
+					#lights_set_brightness(250)
+					
+					
+				elif state.current_flag & caution:
+					print("Held Caution")
+					state.flashing = False
+					lights_set_brightness(250)
+					set_color(yellow_safe)
+					
+					
+					
+				elif state.current_flag & startHidden:
+					print("Continuous green")
+					state.flashing = False
+					
+					if dim_lights_after_green:
+						lights_set_brightness(1)
+					else:
+						lights_set_brightness(254)
+						
+					set_color(green_safe)
+				else:
+					print(hex(ir['SessionFlags']))
+
+				state.last_flag = state.current_flag
 				
-			else:
-				sys.stdout.write("Waiting for iRacing ")
-				sys.stdout.write(next(spinner))
-				sys.stdout.flush()
-				sys.stdout.write("\r")
-			# sleep for 1 second
-			# maximum you can use is 1/60
-			# cause iracing updates data with 60 fps
-			time.sleep(sleep_time)
-	except KeyboardInterrupt:
-	# press ctrl+c to exit
-		pass
+				
+		except KeyboardInterrupt:
+			pass
 		
-	"""
+		time.sleep(1.0)
+	
+	ir.shutdown()
