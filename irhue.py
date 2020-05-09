@@ -33,9 +33,10 @@ yellow_safe = [0.4934, 0.4571]
 green_safe = [0.2075, 0.6549]
 white_safe = [0.3, 0.3]
 red_safe = [0.6818, 0.3071]
+blue_safe = [0.154, 0.0806]
 
 sys.tracebacklimit = -1
-spinner = itertools.cycle(['-', '/', '|', '\\'])
+spinner = itertools.cycle(['-', '\\', '|', '/'])
 
 all_lights = None
 
@@ -61,135 +62,58 @@ startHidden = 0x10000000
 startReady = 0x20000000
 startSet = 0x40000000
 startGo = 0x80000000
-
-# class State(object):
-		
-	# def __init__(self):
-		# print ('Processing current state:', str(self))
-
-	# def update(self):
-		# """
-		# Handle Events
-		# """
-		# pass
-		
-	# def __repr__(self):
-		# """
-		# Leverages the __str__ method to describe the State
-		# """
-		# return self.__str__()
-	
-	# def __str__(self):
-		# """
-		# Returns the name of the State.
-		# """
-		# return self.__class__.__name__
-		
-# class Green(State):
-	
-	# def __init__(self, flashing):
-		# self.flashing = flashing
-		# self.color = green_safe
-	
-		
-	# def update(self):
-		# if self.flashing:
-			# flash_loop()
-		# return self
-
-		
-# class StateManager(object):
-	# """
-	# Simple state manager for flag states
-	# """
-	
-	# current_flag = 0
-	
-	# def __init__(self, dim_lights):
-		# """ Initialize Components """
-		# self.state = Green(flashing = False)
-		# self.dim_lights = dim_lights
-		
-	# def update(self):
-		
-		# self.state.update()
 		
 class State():
 	flashing = False
 	current_flag = 0
 	last_flag = 0
+	pedal_loop = False
+	is_finished = False
 	
-def is_inside_gamut(x, y):
-
-	x1 = 0.675
-	y1 = 0.322
-	x2 = 0.4091
-	y2 = 0.518
-	x3 = 0.167
-	y3 = 0.04
-	
-	c1 = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)
-	c2 = (x3 - x2) * (y - y2) - (y3 - y2) * (x - x2)
-	c3 = (x1 - x3) * (y - y3) - (y1 - y3) * (x - x3)
-	
-	if (c1 < 0 and c2 < 0 and c3 < 0) or (c1 > 0 and c2 > 0 and c3 > 0):
-		return True
-	else:
-		return False
-
-def rgb_to_xy(rgb):
-
-	for color in rgb:
-		color = color / 255
-		color = pow((color + 0.055) / 1.055, 2.4) if color > 0.04045 else color / 12.92
-		
-	X = rgb[0] * 0.649926 + rgb[1] * 0.103455 + rgb[2] * 0.197109
-	Y = rgb[0] * 0.234327 + rgb[1] * 0.743075 + rgb[2] * 0.022598
-	Z = rgb[0] * 0.000000 + rgb[1] * 0.053077 + rgb[2] * 1.035763
-	
-	x = X / (X + Y + Z)
-	y = Y / (X + Y + Z)
-	
-	if is_inside_gamut(x, y):
-		return x, y, Y
-		
-	else:
-		return 0.0, 0.0, 0.0	
-		
 def set_color(xy):
 
 	for l in all_lights:
+		l.effect = "none"
 		l.xy = xy
 
 def lights_set_brightness(bri):
 	for l in all_lights:
 		l.brightness = bri
 
-	
 def flash_loop():
 	while True:
 		if state.flashing:
 			for l in all_lights:
-				l.brightness = 254
+				if all_lights.index(l) % 2 == 0:
+					l.brightness = 1
+				else:
+					l.brightness = 254
 				
 			time.sleep(1)
 			
 			for l in all_lights:
-				l.brightness = 0
+				if all_lights.index(l) % 2 == 0:
+					l.brightness = 254
+				else:
+					l.brightness = 1
+				
+			time.sleep(1)
 
 def pedal_loop():
-	while True:
-		throttle_val = 254 * float(ir['ThrottleRaw'])
-		brake_val = 254 * float(ir['BrakeRaw'])
-		print(throttle_val)
-		print(brake_val)
-		if throttle_val > brake_val:
-			set_color(green_safe)
-		else:
-			set_color(red_safe)
-		
-		for l in all_lights:
-			l.brightness = int(max(throttle_val, brake_val))
+	pass
+	# while True:
+		# if state.pedal_loop:
+			# throttle_val = 254 * float(ir['ThrottleRaw'])
+			# brake_val = 254 * float(ir['BrakeRaw'])
+			# print(throttle_val)
+			# print(brake_val)
+			# if throttle_val > brake_val:
+				# set_color(green_safe)
+			# else:
+				# set_color(red_safe)
+			
+			# for l in all_lights:
+				# l.brightness = int(max(throttle_val, brake_val))
 		
 			
 
@@ -206,15 +130,16 @@ def pedal_loop():
 	
 if __name__ == '__main__':
 
-	format = "%(asctime)s: %(message)s"
-	logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 	config = configparser.ConfigParser(inline_comment_prefixes = (";",))
 	config.read('settings.ini')
 
 	ir = irsdk.IRSDK(parse_yaml_async = True)
 	state = State()
 	
+	# Get variables from settings.ini
 	dim_lights_after_green = bool(int(config['DEFAULT']['DimLightsAfterGreen']))
+	pedal_input = bool(int(config['DEFAULT']['PedalInput']))
+	light_group = config['DEFAULT']['GroupName']
 	ip = config['DEFAULT']['BridgeIP']
 	
 	print("\nWelcome to irHUE: A small Python application for controlling Phillips Hue lights via iRacing.\nPress Ctrl-C at any time to exit the program\n")
@@ -227,11 +152,17 @@ if __name__ == '__main__':
 		try:
 			b = phue.Bridge(ip)
 			b.connect()
+			all_lights = phue.Group(b, light_group).lights
+			print("Bridge found! {} lights from group {} connected.".format(len(all_lights), light_group))
+			break
+		except phue.PhueRequestTimeout:
+			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
+		except LookupError:
+			print("Default light group unspecified or not found, selecting all lights connected.")
 			all_lights = b.lights
 			print("Bridge found! {} lights connected.".format(len(all_lights)))
 			break
-		except (phue.PhueRequestTimeout):
-			print("Could not locate bridge. Check IP address or press blue button on top of bridge during connection process")
+			
 
 	while not ir.startup():
 		sys.stdout.write("Waiting for iRacing ")
@@ -242,15 +173,17 @@ if __name__ == '__main__':
 
 	for l in all_lights:
 		l.transitiontime = 1.0
+		l.effect = "none"
 
 	# state.is_connected = True
 
 	sys.stdout.write("iRacing Connected!")
-	sys.stdout.flush()
-	sys.stdout.write("\r")
+	sys.stdout.flush() 
 
 	# MAIN RACING LOOP
 	
+	format = "%(asctime)s: %(message)s"
+	logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
 	logging.info("Main		: before creating thread")
 	FlashLoopThread = threading.Thread(target=flash_loop, daemon=True)
 	PedalLoopThread = threading.Thread(target=pedal_loop, daemon=True)
@@ -259,8 +192,6 @@ if __name__ == '__main__':
 	PedalLoopThread.start()
 	logging.info("Main		: wait for thread to finish")
 
-	
-	
 	while True:
 
 		try:
@@ -268,57 +199,77 @@ if __name__ == '__main__':
 				break
 				
 			state.current_flag = int(hex(ir['SessionFlags']), 16)
-			print(hex(state.current_flag))
-			print(state.current_flag)
-			print(state.last_flag)
+			print(hex(state.current_flag), end="\r")
 
 			if not state.last_flag == state.current_flag:
+				print("Flag Change")
+				print("Last: {}".format(hex(state.last_flag)))
+				print("Current: {}".format(hex(state.current_flag)))
+				
+				if (state.current_flag & checkered):
+					print("Checkered Flag")
+					for l in all_lights:
+						l.brightness = 175
+						l.effect = "colorloop"
+				
+				elif state.current_flag & white:
+					print("White Flag")
+					lights_set_brightness(254)
+					set_color(white_safe)
 
-				if state.current_flag & green:
+				elif state.current_flag & green:
 					print("GREENFLAG")
 					state.flashing = True
-					#lights_set_brightness(254)
+					lights_set_brightness(254)
 					set_color(green_safe)
-					
-					
+						
 				elif state.current_flag & oneLapToGreen:
-					print("One to Go")
+					print("One lap to green")
 					state.flashing = False
-					lights_set_brightness(250)
-					set_color(white_safe)
-					
-					
+					time.sleep(1.1)
+					lights_set_brightness(100)
 					
 				elif state.current_flag & cautionWaving:
 					print("Caution Waving")
 					state.flashing = True
 					set_color(yellow_safe)
 					#lights_set_brightness(250)
-					
-					
+
 				elif state.current_flag & caution:
 					print("Held Caution")
 					state.flashing = False
-					lights_set_brightness(250)
+					time.sleep(1.1)
+					lights_set_brightness(100)
 					set_color(yellow_safe)
-					
-					
-					
+	
 				elif state.current_flag & startHidden:
 					print("Continuous green")
 					state.flashing = False
 					
+					time.sleep(1.1)
+					
 					if dim_lights_after_green:
-						lights_set_brightness(1)
+						lights_set_brightness(100)
 					else:
 						lights_set_brightness(254)
+					
+					if pedal_loop:
+						state.pedal_loop = True
 						
 					set_color(green_safe)
+				
+				elif state.current_flag & black:
+					print("Black Flag")
+					state.flashing = True
+					for l in all_lights:
+						if all_lights.index(l) % 2 == 0:
+							l.xy = red_safe
+						else:
+							l.xy = blue_safe
 				else:
 					print(hex(ir['SessionFlags']))
 
 				state.last_flag = state.current_flag
-				
 				
 		except KeyboardInterrupt:
 			pass
