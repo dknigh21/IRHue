@@ -168,16 +168,11 @@ if __name__ == '__main__':
 	sys.stdout.flush() 
 
 	# MAIN RACING LOOP
-	
-	format = "%(asctime)s: %(message)s"
-	logging.basicConfig(format=format, level=logging.INFO, datefmt="%H:%M:%S")
-	logging.info("Main		: before creating thread")
+
 	FlashLoopThread = threading.Thread(target=flash_loop, daemon=True)
 	PedalLoopThread = threading.Thread(target=pedal_loop, daemon=True)
-	logging.info("Main		: before running thread")
 	FlashLoopThread.start()
 	PedalLoopThread.start()
-	logging.info("Main		: wait for thread to finish")
 
 	while True:
 
