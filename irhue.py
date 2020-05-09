@@ -114,19 +114,6 @@ def pedal_loop():
 			
 			# for l in all_lights:
 				# l.brightness = int(max(throttle_val, brake_val))
-		
-			
-
-# def connect_to_iracing():
-
-	# while not ir.startup():
-			# sys.stdout.write("Waiting for iRacing ")
-			# sys.stdout.write(next(spinner))
-			# sys.stdout.flush()
-			# sys.stdout.write("\r")
-
-	# sys.stdout.write("iRacing Connected!")
-	# sys.write("\r")
 	
 if __name__ == '__main__':
 
