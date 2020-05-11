@@ -1,0 +1,2 @@
+pyirsdk >= 1.2.6
+phue
